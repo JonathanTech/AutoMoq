@@ -7,6 +7,7 @@ using AutoMoq.Unity;
 using Microsoft.Practices.Unity;
 using Moq;
 using Moq.Language.Flow;
+using Microsoft.Practices.ObjectBuilder2;
 
 [assembly: InternalsVisibleTo("AutoMoq.Tests")]
 
@@ -56,16 +57,16 @@ namespace AutoMoq
         /// </summary>
         /// <typeparam name = "T"></typeparam>
         /// <returns></returns>
-        public virtual Mock<T> GetMock<T>() where T : class
+        public virtual Mock<T> GetMock<T>(params object[] args) where T : class
         {
             ResolveType = null;
             var type = GetTheMockType<T>();
             if (GetMockHasNotBeenCalledForThisType(type))
-                CreateANewMockAndRegisterIt<T>(type);
+                CreateANewMockAndRegisterIt<T>(type, args);
 
             return TheRegisteredMockForThisType<T>(type);
         }
-
+        
         internal virtual void SetMock(Type type, Mock mock)
         {
             if (registeredMocks.ContainsKey(type) == false)
@@ -97,14 +98,40 @@ namespace AutoMoq
 
         private Mock<T> TheRegisteredMockForThisType<T>(Type type) where T : class
         {
-            return (Mock<T>) registeredMocks.Where(x => x.Key == type).First().Value;
+            return (Mock<T>) registeredMocks.First(x => x.Key == type).Value;
         }
 
-        private void CreateANewMockAndRegisterIt<T>(Type type) where T : class
+        private void CreateANewMockAndRegisterIt<T>(Type type, params object[] args) where T : class
         {
-            var mock = new Mock<T>();
+            Mock<T> mock;
+            if(args.Length != 0)
+            {
+                mock = new Mock<T>(args);
+            }
+            else if(!type.GetConstructors().Any() || type.GetConstructors().Any(m => !m.GetParameters().Any()))
+            {
+                mock = new Mock<T>();
+            }
+            else
+            {
+                var constructor = type.GetConstructors().OrderBy(m => m.GetParameters().Count()).First();
+                var parameterTypes =  constructor.GetParameters().Select( x => ((Mock) CreateMock(x.ParameterType)).Object).ToArray();
+
+                mock = new Mock<T>(parameterTypes);
+            }
             container.RegisterInstance(mock.Object);
             SetMock(type, mock);
+        }
+        
+        private object CreateMock(Type type)
+        {
+            // Create get a method instance of CreateMockArgumentOfType that is closed to the correct type.
+            var method = GetType().GetMethod("GetMock");
+            if (method == null)
+            {
+                throw new InvalidOperationException("Unable to find method");
+            }
+            return method.MakeGenericMethod(type).Invoke(this, new object[]{new object[0]});
         }
 
         private bool GetMockHasNotBeenCalledForThisType(Type type)

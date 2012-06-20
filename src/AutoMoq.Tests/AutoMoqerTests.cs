@@ -31,6 +31,21 @@ namespace AutoMoq.Tests
         }
 
         [Test]
+        public void Can_Mock_a_class_with_dependencies()
+        {
+            var concreteClass = mocker.GetMock<ClassWithDependencies>();
+            concreteClass.ShouldNotBeNull();
+        }
+
+        [Test]
+        public void Can_Mock_a_class_with_dependencies_when_dependecies_are_given_to_it()
+        {
+            var dependency = mocker.GetMock<IDependency>();
+            var concreteClass = mocker.GetMock<ClassWithDependencies>(dependency.Object);
+            concreteClass.ShouldNotBeNull();
+        }
+
+        [Test]
         public void Can_resolve_a_class_with_func_dependencies()
         {
             var concreteClass = mocker.Create<ClassWithFuncDependencies>();
